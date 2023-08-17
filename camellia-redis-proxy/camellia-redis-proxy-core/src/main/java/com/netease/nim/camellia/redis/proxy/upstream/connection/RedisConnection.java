@@ -39,7 +39,7 @@ public class RedisConnection {
     private static final Logger logger = LoggerFactory.getLogger(RedisConnection.class);
     private static final AtomicLong id = new AtomicLong(0);
 
-    private static final CamelliaScheduleExecutor heartBeatScheduled = new CamelliaScheduleExecutor("camellia-redis-connection-heart-beat", 1, 1024*32);
+    private static final CamelliaScheduleExecutor heartBeatScheduled = new CamelliaScheduleExecutor("camellia-redis-connection-heartbeat", 1, 1024*32);
     private static final CamelliaScheduleExecutor idleCheckScheduled = new CamelliaScheduleExecutor("camellia-redis-connection-idle-check", 1, 1024*32);
     private static final ExecutorService initializeExecutor = new ThreadPoolExecutor(SysUtils.getCpuNum(), SysUtils.getCpuNum(), 0, TimeUnit.SECONDS,
             new LinkedBlockingQueue<>(10240), new DefaultThreadFactory("camellia-redis-connection-initialize"), new ThreadPoolExecutor.AbortPolicy());
@@ -125,8 +125,8 @@ public class RedisConnection {
                         @Override
                         protected void initChannel(Channel channel) {
                             ChannelPipeline pipeline = channel.pipeline();
-                            if (config.getSslContext() != null && config.getProxyUpstreamTlsProvider() != null) {
-                                pipeline.addLast(config.getProxyUpstreamTlsProvider().createSslHandler(config.getSslContext()));
+                            if (config.getProxyUpstreamTlsProvider() != null && config.getResource() != null) {
+                                pipeline.addLast(config.getProxyUpstreamTlsProvider().createSslHandler(config.getResource()));
                             }
                             pipeline.addLast(new ReplyDecoder());
                             pipeline.addLast(new ReplyAggregateDecoder());
@@ -162,6 +162,13 @@ public class RedisConnection {
                     config.getFastFailStats().incrFail(addr.getUrl());
                     status = RedisConnectionStatus.INVALID;
                     logger.error("{} connect fail", connectionName, future.cause());
+                    try {
+                        if (config.getUpstreamClient() != null) {
+                            config.getUpstreamClient().renew();
+                        }
+                    } catch (Exception e) {
+                        logger.error("upstream client renew fail by {}", connectionName, e);
+                    }
                 }
             });
         } catch (Exception e) {
@@ -387,6 +394,13 @@ public class RedisConnection {
             status = RedisConnectionStatus.INVALID;
             logger.error("{} initialize fail", connectionName, e);
             stop();
+            try {
+                if (config.getUpstreamClient() != null) {
+                    config.getUpstreamClient().renew();
+                }
+            } catch (Exception ex) {
+                logger.error("upstream client renew fail by {}", connectionName, ex);
+            }
         }
     }
 
@@ -419,27 +433,12 @@ public class RedisConnection {
         CompletableFuture<Reply> future = sendPing();
         try {
             Reply reply = future.get(timeoutMillis, TimeUnit.MILLISECONDS);
-            if (reply instanceof StatusReply) {
-                if (((StatusReply) reply).getStatus().equalsIgnoreCase(StatusReply.PONG.getStatus())) {
-                    if (logEnable && logger.isInfoEnabled()) {
-                        logger.info("{} send `PING` command success, reply = {}", connectionName, ((StatusReply) reply).getStatus());
-                    }
-                    return;
+            String resp = Utils.checkPingReply(reply);
+            if (resp != null) {
+                if (logEnable && logger.isInfoEnabled()) {
+                    logger.info("{} send `PING` command success, reply = {}", connectionName, resp);
                 }
-            }
-            if (reply instanceof MultiBulkReply) {
-                Reply[] replies = ((MultiBulkReply) reply).getReplies();
-                if (replies.length > 0) {
-                    Reply reply1 = replies[0];
-                    if (reply1 instanceof BulkReply) {
-                        if (Utils.bytesToString(((BulkReply) reply1).getRaw()).equalsIgnoreCase(StatusReply.PONG.getStatus())) {
-                            if (logEnable && logger.isInfoEnabled()) {
-                                logger.info("{} send `PING` command success, reply = {}", connectionName, Utils.bytesToString(((BulkReply) reply1).getRaw()));
-                            }
-                            return;
-                        }
-                    }
-                }
+                return;
             }
             logger.error("{} send `PING` command fail, reply = {}", connectionName, reply);
             throw new CamelliaRedisException("ping fail");

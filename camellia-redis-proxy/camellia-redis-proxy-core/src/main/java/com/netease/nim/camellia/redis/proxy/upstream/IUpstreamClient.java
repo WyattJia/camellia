@@ -19,9 +19,9 @@ public interface IUpstreamClient {
 
     void sendCommand(int db, List<Command> commands, List<CompletableFuture<Reply>> futureList);
 
-    void preheat();
+    void start();
 
-    String getUrl();
+    void preheat();
 
     boolean isValid();
 
@@ -29,9 +29,11 @@ public interface IUpstreamClient {
 
     Resource getResource();
 
+    void renew();
+
     default RedisConnectionStatus getStatus(RedisConnectionAddr addr) {
         if (addr == null) return RedisConnectionStatus.INVALID;
-        RedisConnection redisConnection = RedisConnectionHub.getInstance().get(getResource(), addr);
+        RedisConnection redisConnection = RedisConnectionHub.getInstance().get(this, addr);
         if (redisConnection == null) {
             return RedisConnectionStatus.INVALID;
         }

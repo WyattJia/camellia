@@ -1,5 +1,6 @@
 package com.netease.nim.camellia.redis.proxy.netty;
 
+import com.netease.nim.camellia.redis.proxy.monitor.PasswordMaskUtils;
 import com.netease.nim.camellia.redis.proxy.upstream.*;
 import com.netease.nim.camellia.redis.proxy.upstream.connection.RedisConnection;
 import com.netease.nim.camellia.redis.proxy.upstream.connection.RedisConnectionHub;
@@ -20,12 +21,12 @@ public class DefaultProxyShutdown implements ProxyShutdown {
 
     private static final Logger logger = LoggerFactory.getLogger(DefaultProxyShutdown.class);
 
-    private ChannelFuture serverChannelFuture;
+    private ChannelFuture[] serverChannelFuture;
     private ChannelFuture cportChannelFuture;
     private ChannelFuture consoleChannelFuture;
     private IUpstreamClientTemplateFactory factory;
 
-    final void setServerChannelFuture(ChannelFuture serverChannelFuture) {
+    final void setServerChannelFuture(ChannelFuture... serverChannelFuture) {
         this.serverChannelFuture = serverChannelFuture;
     }
 
@@ -46,9 +47,12 @@ public class DefaultProxyShutdown implements ProxyShutdown {
         boolean success = true;
         if (serverChannelFuture != null) {
             try {
-                serverChannelFuture.channel().close()
-                        .addListener((ChannelFutureListener) channelFuture ->
-                                logger.warn("camellia redis proxy server port shutdown for addr = {}", channelFuture.channel().localAddress()));
+                for (ChannelFuture future : serverChannelFuture) {
+                    if (future == null) continue;
+                    future.channel().close()
+                            .addListener((ChannelFutureListener) channelFuture ->
+                                    logger.warn("camellia redis proxy server port shutdown for addr = {}", channelFuture.channel().localAddress()));
+                }
                 serverChannelFuture = null;
             } catch (Exception e) {
                 logger.error(e.getMessage(), e);
@@ -112,10 +116,10 @@ public class DefaultProxyShutdown implements ProxyShutdown {
         int size = 0;
         List<IUpstreamClient> upstreamClients = new ArrayList<>(clientFactory.getAll());
         for (IUpstreamClient client : upstreamClients) {
-            IUpstreamClient upstreamClient = clientFactory.remove(client.getUrl());
+            IUpstreamClient upstreamClient = clientFactory.remove(client.getResource().getUrl());
             if (upstreamClient != null) {
                 upstreamClient.shutdown();
-                logger.warn("upstream client = {} shutdown", upstreamClient.getUrl());
+                logger.warn("upstream client = {} shutdown", PasswordMaskUtils.maskResource(upstreamClient.getResource()));
                 size ++;
             }
         }

@@ -7,15 +7,13 @@ import com.netease.nim.camellia.redis.proxy.upstream.connection.RedisConnectionA
 import com.netease.nim.camellia.redis.proxy.upstream.connection.RedisConnectionHub;
 import com.netease.nim.camellia.redis.proxy.upstream.connection.RedisConnectionStatus;
 import com.netease.nim.camellia.redis.proxy.upstream.standalone.AbstractSimpleRedisClient;
-import com.netease.nim.camellia.redis.proxy.util.ExecutorUtils;
+import com.netease.nim.camellia.redis.proxy.upstream.utils.Renew;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.concurrent.ScheduledFuture;
-import java.util.concurrent.ThreadLocalRandom;
-import java.util.concurrent.TimeUnit;
+import java.util.concurrent.*;
 
 /**
  * Created by caojiajun on 2023/2/2
@@ -27,34 +25,35 @@ public abstract class AbstractRedisProxiesClient extends AbstractSimpleRedisClie
     private final Object lock = new Object();
     private List<RedisConnectionAddr> originalList = new ArrayList<>();
     private List<RedisConnectionAddr> dynamicList = new ArrayList<>();
-    private ScheduledFuture<?> scheduledFuture;
+    private Renew renew;
 
     @Override
     public void preheat() {
-        logger.info("try preheat, url = {}", PasswordMaskUtils.maskResource(getResource().getUrl()));
+        logger.info("try preheat, resource = {}", PasswordMaskUtils.maskResource(getResource()));
         for (RedisConnectionAddr addr : getAll()) {
-            logger.info("try preheat, url = {}, proxy = {}", PasswordMaskUtils.maskResource(getResource().getUrl()), PasswordMaskUtils.maskAddr(addr));
-            boolean result = RedisConnectionHub.getInstance().preheat(getResource(), addr.getHost(), addr.getPort(), addr.getUserName(), addr.getPassword());
-            logger.info("preheat result = {}, url = {}, proxy = {}", result, PasswordMaskUtils.maskResource(getResource().getUrl()), PasswordMaskUtils.maskAddr(addr));
+            logger.info("try preheat, resource = {}, proxy = {}", PasswordMaskUtils.maskResource(getResource()), PasswordMaskUtils.maskAddr(addr));
+            boolean result = RedisConnectionHub.getInstance().preheat(this, addr.getHost(), addr.getPort(), addr.getUserName(), addr.getPassword(), addr.getDb());
+            logger.info("preheat result = {}, resource = {}, proxy = {}", result, PasswordMaskUtils.maskResource(getResource()), PasswordMaskUtils.maskAddr(addr));
         }
-        logger.info("preheat success, url = {}", PasswordMaskUtils.maskResource(getResource().getUrl()));
+        logger.info("preheat success, resource = {}", PasswordMaskUtils.maskResource(getResource()));
     }
 
-    protected void init() {
+    @Override
+    public void start() {
         refresh(true);
         if (originalList.isEmpty()) {
-            throw new CamelliaRedisException("init fail, no reachable proxy, resource = " + getResource().getUrl());
+            throw new CamelliaRedisException("init fail, no reachable proxy, resource = " + PasswordMaskUtils.maskResource(getResource()));
         }
         int seconds = ProxyDynamicConf.getInt("redis.proxies.reload.interval.seconds", 60);
-        this.scheduledFuture = ExecutorUtils.scheduleAtFixedRate(() -> refresh(false), seconds, seconds, TimeUnit.SECONDS);
+        this.renew = new Renew(getResource(), this::renew0, seconds);
     }
 
     @Override
     public synchronized void shutdown() {
-        if (scheduledFuture != null) {
-            scheduledFuture.cancel(false);
+        if (renew != null) {
+            renew.close();
         }
-        logger.warn("upstream client shutdown, url = {}", getUrl());
+        logger.warn("upstream client shutdown, resource = {}", PasswordMaskUtils.maskResource(getResource()));
     }
 
     @Override
@@ -73,7 +72,7 @@ public abstract class AbstractRedisProxiesClient extends AbstractSimpleRedisClie
     private void refresh(boolean first) {
         List<RedisConnectionAddr> list = getAll();
         if (list == null || list.isEmpty()) {
-            logger.warn("addr list is empty, skip refresh, resource = {}", getResource());
+            logger.warn("addr list is empty, skip refresh, resource = {}", PasswordMaskUtils.maskResource(getResource()));
             return;
         }
         synchronized (lock) {
@@ -87,7 +86,7 @@ public abstract class AbstractRedisProxiesClient extends AbstractSimpleRedisClie
                 }
             }
             if (validList.isEmpty()) {
-                logger.warn("no reachable addr list {}, skip refresh, resource = {}", list, getResource());
+                logger.warn("no reachable addr list {}, skip refresh, resource = {}", list, PasswordMaskUtils.maskResource(getResource()));
                 return;
             }
             this.originalList = new ArrayList<>(validList);
@@ -150,4 +149,14 @@ public abstract class AbstractRedisProxiesClient extends AbstractSimpleRedisClie
         }
     }
 
+    @Override
+    public void renew() {
+        if (renew != null) {
+            renew.renew();
+        }
+    }
+
+    private void renew0() {
+        refresh(false);
+    }
 }

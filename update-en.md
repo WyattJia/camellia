@@ -6,12 +6,21 @@
 * camellia-redis-proxy support tls between client and proxy
 * camellia-redis-proxy support tls between proxy and upstream redis
 * camellia-redis-proxy use command `info upstream-info`, `redis-sentinel` support `sentinelUserName` and `sentinelPassword`
+* camellia-id-gen provide CamelliaStrictIdGen2, which only dependency on redis and ntp timestamp
+* camellia-redis-proxy support local json config
 
 ### update
-* none
+* camellia-redis-proxy support disabled console by setting console-port=0
+* http-accelerate-proxy transport of quic, use BBR as default congestion control algorithm
+* optimize camellia-redis-proxy preheat logic, if preheat fail, proxy startup fail
+* camellia-redis-proxy add schedule renew logic when proxy pass redis-sentinel
+* camellia-redis-proxy redis-sentinel/redis-proxies support self-adaption renew
 
 ### fix
-* none
+* camellia-redis-proxy random console port not available, bug from 1.2.11
+* camellia-redis-proxy need mask sentinelPassword when logging
+* camellia-redis-proxy fix NPE when redis-cluster fail-over
+* camellia-redis-proxy do not renew upstream addrs when proxy pass to redis-sentinel and in `+reset-master` case
 
 
 # 1.2.13（2023/08/04）

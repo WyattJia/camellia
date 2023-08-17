@@ -1,7 +1,6 @@
 package com.netease.nim.camellia.redis.proxy.netty;
 
 
-import com.netease.nim.camellia.core.model.Resource;
 import com.netease.nim.camellia.redis.proxy.command.CommandTaskQueue;
 import com.netease.nim.camellia.redis.proxy.command.Command;
 import com.netease.nim.camellia.redis.proxy.monitor.ProxyMonitorCollector;
@@ -141,7 +140,7 @@ public class ChannelInfo {
         return null;
     }
 
-    public RedisConnection acquireBindRedisConnection(Resource resource, RedisConnectionAddr addr) {
+    public RedisConnection acquireBindRedisConnection(IUpstreamClient upstreamClient, RedisConnectionAddr addr) {
         if (mock) {
             return null;
         }
@@ -152,7 +151,7 @@ public class ChannelInfo {
                 return connection;
             }
         }
-        RedisConnection connection = RedisConnectionHub.getInstance().newConnection(resource, addr);
+        RedisConnection connection = RedisConnectionHub.getInstance().newConnection(upstreamClient, addr);
         if (connection == null || !connection.isValid()) return null;
         if (bindRedisConnectionCache == null) {
             synchronized (this) {
@@ -165,7 +164,7 @@ public class ChannelInfo {
         return connection;
     }
 
-    public RedisConnection acquireBindSubscribeRedisConnection(Resource resource, RedisConnectionAddr addr) {
+    public RedisConnection acquireBindSubscribeRedisConnection(IUpstreamClient upstreamClient, RedisConnectionAddr addr) {
         if (mock) {
             return null;
         }
@@ -176,7 +175,7 @@ public class ChannelInfo {
                 return connection;
             }
         }
-        RedisConnection connection = RedisConnectionHub.getInstance().newConnection(resource, addr);
+        RedisConnection connection = RedisConnectionHub.getInstance().newConnection(upstreamClient, addr);
         if (connection == null || !connection.isValid()) return null;
         if (bindSubscribeRedisConnectionCache == null) {
             synchronized (this) {
@@ -307,7 +306,7 @@ public class ChannelInfo {
             for (Command command : cachedCommands) {
                 CompletableFuture<Reply> future = new CompletableFuture<>();
                 if (ProxyMonitorCollector.isMonitorEnable()) {
-                    UpstreamFailMonitor.stats(upstreamClient.getUrl(), command, future);
+                    UpstreamFailMonitor.stats(upstreamClient.getResource().getUrl(), command, future);
                 }
                 futureList.add(future);
             }

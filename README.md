@@ -95,9 +95,24 @@ camellia主要包括以下功能模块：
 * ......  
 [快速开始](/docs/tools/tools.md)  
 
-## 版本
+## RELEASE版本
 最新版本是1.2.13，已经发布到maven中央仓库（2023/08/04）  
 [更新日志](/update-zh.md)  
+
+## SNAPSHOT版本
+当前最新是1.2.14-SNAPSHOT  
+```xml
+<repositories>
+  <repository>
+    <id>sonatype-snapshots</id>
+    <name>Sonatype Snapshot Repository</name>
+    <url>https://oss.sonatype.org/content/repositories/snapshots/</url>
+    <snapshots>
+      <enabled>true</enabled>
+    </snapshots>
+  </repository>
+</repositories>
+```
 
 ## 谁在使用Camellia
 如果觉得 Camellia 对你有用，欢迎Star/Fork  

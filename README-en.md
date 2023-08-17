@@ -83,9 +83,24 @@ provide some simple and practical tools, like:
 * ......  
 [QUICK START](/docs/tools/tools.md)
 
-## Version
+## Release-Version
 latest version is 1.2.13, have deploy to maven central repository on 2023/08/04    
 [CHANGE_LOG](/update-en.md)  
+
+## SNAPSHOT-version
+latest version is 1.2.14-SNAPSHOT  
+```xml
+<repositories>
+  <repository>
+    <id>sonatype-snapshots</id>
+    <name>Sonatype Snapshot Repository</name>
+    <url>https://oss.sonatype.org/content/repositories/snapshots/</url>
+    <snapshots>
+      <enabled>true</enabled>
+    </snapshots>
+  </repository>
+</repositories>
+```
 
 ## User List
 If you are using Camellia and feel it helps or you'd like to do some contributions, please add your company to [user list](https://github.com/netease-im/camellia/issues/10) and let us know your needs 
